@@ -4,11 +4,12 @@
 #include <math.h>
 
 
-#define __PROFILE__
+//#define __PROFILE__
 
 #ifdef __PROFILE__
 
 #include <algorithm>
+#include <chrono>
 
 #endif
 
@@ -16,7 +17,7 @@
 using namespace std;
 
 void transpose(char *dst, const char *src, size_t n, size_t m) {
-    size_t block = 32;
+    size_t block = 16;
     for (size_t i = 0; i < n; i += block) {
         for(size_t j = 0; j < m; ++j) {
             for(size_t b = 0; b < block && i + b < n; ++b) {
@@ -45,6 +46,10 @@ void external_transpose(ifstream &in, ofstream &out, int n, int m, int memory_si
     }
 
 #ifdef __PROFILE__
+
+    int file_reads_count = 0;
+    int file_writes_count = 0;
+
     cout << "lines_block_count = " << lines_block_count << " cols_block_count = " << cols_block_count << endl;
 #endif
 
@@ -76,39 +81,72 @@ void external_transpose(ifstream &in, ofstream &out, int n, int m, int memory_si
             cout << "lines_to_read = " << lines_to_read << " cols_to_read = " << cols_to_read << endl;
 #endif
 
-
-            for (int k = 0; k < lines_to_read; ++k) {
+            // we can get few lines for one read operation
+            if (hor_blocks == 1) {
                 long source_offset = params_offset +         // n and m 8 bytes
-                        (k + i * lines_block_count) * m +    // lines offset
+                                     (i * lines_block_count) * m +    // lines offset
                                      j * cols_block_count;   // offset inside current line
                 in.seekg(source_offset);
-                in.read(source + k * cols_to_read, cols_to_read);
+                in.read(source, cols_to_read * lines_to_read);
 
 #ifdef __PROFILE__
+                file_reads_count++;
                 cout << "source_offset = " << source_offset << " read bytes = " << cols_to_read << endl;
 #endif
+            } else {
+                for (int k = 0; k < lines_to_read; ++k) {
+                    long source_offset = params_offset +         // n and m 8 bytes
+                                         (k + i * lines_block_count) * m +    // lines offset
+                                         j * cols_block_count;   // offset inside current line
+                    in.seekg(source_offset);
+                    in.read(source + k * cols_to_read, cols_to_read);
 
+#ifdef __PROFILE__
+                    file_reads_count++;
+                    cout << "source_offset = " << source_offset << " read bytes = " << cols_to_read << endl;
+#endif
+
+                }
             }
+
 
             transpose(destination, source, lines_to_read, cols_to_read);
 
-
-            // write block
-            for (int k = 0; k < cols_to_read; ++k) {
-                // Mirror source offset
+            // we can set few lines for one write operation
+            if (vert_blocks == 1) {
                 long dest_offset = params_offset +
-                                    (k + j * cols_block_count) * n +
-                                     i * lines_block_count;
+                                   (j * cols_block_count) * n +
+                                   i * lines_block_count;
                 out.seekp(dest_offset);
-                out.write(destination + k * lines_to_read, lines_to_read);
+                out.write(destination, lines_to_read * cols_to_read);
 
 #ifdef __PROFILE__
+                file_writes_count++;
                 cout << "dest_offset = " << dest_offset << " write bytes = " << lines_to_read << endl;
 #endif
+            } else {
+                // write block
+                for (int k = 0; k < cols_to_read; ++k) {
+                    // Mirror source offset
+                    long dest_offset = params_offset +
+                                       (k + j * cols_block_count) * n +
+                                       i * lines_block_count;
+                    out.seekp(dest_offset);
+                    out.write(destination + k * lines_to_read, lines_to_read);
 
+#ifdef __PROFILE__
+                    file_writes_count++;
+                    cout << "dest_offset = " << dest_offset << " write bytes = " << lines_to_read << endl;
+#endif
+                }
             }
         }
     }
+
+#ifdef __PROFILE__
+    cout << "file_writes_count = " << file_writes_count << " file_reads_count = " << file_reads_count << endl;
+#endif
+
 }
 
 #ifdef __PROFILE__
@@ -151,11 +189,17 @@ bool compare_files(const string& filename1, const string& filename2)
 int main() {
 
 #ifdef __PROFILE__
-
-    gen_test(5, 6);
-
+//    gen_test(100000, 100); // file_writes_count = 4100 file_reads_count = 100000
+//    gen_test(100, 100000); //file_writes_count = 100000 file_reads_count = 4100
+//    gen_test(10000, 1000); // file_writes_count = 21000 file_reads_count = 30000
+//    gen_test(1000000, 10); // file_writes_count = 410 file_reads_count = 1000000
+//    gen_test(2, 10); // file_writes_count = 410 file_reads_count = 1000000
 #endif
 
+
+#ifdef __PROFILE__
+    chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+#endif
 
     ifstream in("input.bin", ios::binary);
     ofstream out("output.bin", ios::binary | ios::out);
@@ -168,10 +212,16 @@ int main() {
     out.write((char *)&m, 4);
     out.write((char *)&n, 4);
 
-    int memory_limit = 1000000 - 1000;
+    int memory_limit = 500000 - 1000;
 
     external_transpose(in, out, n, m, memory_limit);
     out.close();
+
+#ifdef __PROFILE__
+    chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+    cout << " Time difference = " << chrono::duration_cast<chrono::milliseconds>(end - begin).count() << endl;
+#endif
+
 
 #ifdef __PROFILE__
 
