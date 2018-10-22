@@ -46,14 +46,10 @@ void external_transpose(ifstream &in, ofstream &out, int n, int m, int memory_si
     }
 
 #ifdef __PROFILE__
-
     int file_reads_count = 0;
     int file_writes_count = 0;
-
     cout << "lines_block_count = " << lines_block_count << " cols_block_count = " << cols_block_count << endl;
 #endif
-
-
 
     char *source = new char[lines_block_count * cols_block_count];
     char *destination = new char[lines_block_count * cols_block_count];
@@ -80,7 +76,6 @@ void external_transpose(ifstream &in, ofstream &out, int n, int m, int memory_si
 #ifdef __PROFILE__
             cout << "lines_to_read = " << lines_to_read << " cols_to_read = " << cols_to_read << endl;
 #endif
-
             // we can get few lines for one read operation
             if (hor_blocks == 1) {
                 long source_offset = params_offset +         // n and m 8 bytes
@@ -88,7 +83,6 @@ void external_transpose(ifstream &in, ofstream &out, int n, int m, int memory_si
                                      j * cols_block_count;   // offset inside current line
                 in.seekg(source_offset);
                 in.read(source, cols_to_read * lines_to_read);
-
 #ifdef __PROFILE__
                 file_reads_count++;
                 cout << "source_offset = " << source_offset << " read bytes = " << cols_to_read << endl;
@@ -100,15 +94,12 @@ void external_transpose(ifstream &in, ofstream &out, int n, int m, int memory_si
                                          j * cols_block_count;   // offset inside current line
                     in.seekg(source_offset);
                     in.read(source + k * cols_to_read, cols_to_read);
-
 #ifdef __PROFILE__
                     file_reads_count++;
                     cout << "source_offset = " << source_offset << " read bytes = " << cols_to_read << endl;
 #endif
-
                 }
             }
-
 
             transpose(destination, source, lines_to_read, cols_to_read);
 
@@ -157,8 +148,7 @@ void gen_test(int n, int m) {
     file.write((char *)&n, 4);
     file.write((char *)&m, 4);
 
-    for (int i = 1; i <= n * m; i++)
-    {
+    for (int i = 1; i <= n * m; i++){
         file.write((char *)&i, 1);
     }
 
@@ -189,15 +179,7 @@ bool compare_files(const string& filename1, const string& filename2)
 int main() {
 
 #ifdef __PROFILE__
-//    gen_test(100000, 100); // file_writes_count = 4100 file_reads_count = 100000
-//    gen_test(100, 100000); //file_writes_count = 100000 file_reads_count = 4100
-//    gen_test(10000, 1000); // file_writes_count = 21000 file_reads_count = 30000
-//    gen_test(1000000, 10); // file_writes_count = 410 file_reads_count = 1000000
-//    gen_test(2, 10); // file_writes_count = 410 file_reads_count = 1000000
-#endif
-
-
-#ifdef __PROFILE__
+//    gen_test(100000, 100);
     chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 #endif
 
@@ -220,13 +202,7 @@ int main() {
 #ifdef __PROFILE__
     chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     cout << " Time difference = " << chrono::duration_cast<chrono::milliseconds>(end - begin).count() << endl;
-#endif
-
-
-#ifdef __PROFILE__
-
     cout << "Result correct - " << compare_files("output.bin", "answer.txt");
-
 #endif
 
 
