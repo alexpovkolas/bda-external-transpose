@@ -6,10 +6,6 @@
 
 #define __PROFILE__
 
-#ifdef __PROFILE__
-
-
-#endif
 
 using namespace std;
 
@@ -78,7 +74,32 @@ void external_transpose(ifstream &in, ofstream &out, int n, int m, int memory_si
     }
 }
 
+#ifdef __PROFILE__
+
+void gen_test(int n, int m) {
+
+    ofstream file("input.bin", ios::binary);
+    file.write((char *)&n, 4);
+    file.write((char *)&m, 4);
+
+    for (int i = 0; i < n * m; i++)
+    {
+        file.write((char *)&i, 1);
+    }
+
+    file.close();
+}
+
+#endif
+
 int main() {
+
+#ifdef __PROFILE__
+
+    gen_test(5, 6);
+
+#endif
+
 
     ifstream in("input.bin", ios::binary);
     ofstream out("output.bin", ios::binary | ios::out);
