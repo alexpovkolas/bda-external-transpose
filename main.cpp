@@ -6,6 +6,12 @@
 
 #define __PROFILE__
 
+#ifdef __PROFILE__
+
+#include <algorithm>
+
+#endif
+
 
 using namespace std;
 
@@ -21,42 +27,67 @@ void transpose(char *dst, const char *src, size_t n, size_t m) {
 }
 
 void external_transpose(ifstream &in, ofstream &out, int n, int m, int memory_size) {
-    int read_block_size = memory_size / 2 - 1000;
+    int read_block_size = memory_size / 2;
 
     int lines_block_count = 0;    // lines count we read for one block
     int cols_block_count = sqrt(read_block_size); // columns count we read for one block. One block is matrix lines_count * cols_count
     if (cols_block_count < n && cols_block_count < m) {
         lines_block_count = cols_block_count;
-    } else if (cols_block_count > n && cols_block_count > m){
+    } else if (cols_block_count >= n && cols_block_count >= m){
         lines_block_count = n;
         cols_block_count = m;
-    } else if (cols_block_count > n) {
+    } else if (cols_block_count >= n) {
         lines_block_count = n;
         cols_block_count = read_block_size / lines_block_count;
-    } else if (cols_block_count > m) {
+    } else if (cols_block_count >= m) {
         cols_block_count = m;
         lines_block_count = read_block_size / cols_block_count;
     }
 
+#ifdef __PROFILE__
+    cout << "lines_block_count = " << lines_block_count << " cols_block_count = " << cols_block_count << endl;
+#endif
 
-    char *source = new char[read_block_size];
-    char *destination = new char[read_block_size];
+
+
+    char *source = new char[lines_block_count * cols_block_count];
+    char *destination = new char[lines_block_count * cols_block_count];
     int params_offset = 8;
 
-    for (int i = 0; i < ceil(n / (double)lines_block_count); ++i) {
-        for (int j = 0; j < ceil(m / (double)cols_block_count); ++i) {
+    int vert_blocks = ceil(n / (double)lines_block_count);
+    int hor_blocks = ceil(m / (double)cols_block_count);
 
+#ifdef __PROFILE__
+    cout << "vert_blocks = " << vert_blocks << " hor_blocks = " << hor_blocks << endl;
+#endif
+
+    for (int i = 0; i < vert_blocks; ++i) {
+        for (int j = 0; j < hor_blocks; ++j) {
+
+#ifdef __PROFILE__
+            cout << "i = " << i << " j = " << j << endl;
+#endif
 
             // read block
             int lines_to_read = n - lines_block_count * i > lines_block_count ? lines_block_count : n - lines_block_count * i;
-            int cols_to_read = m - cols_block_count * j > cols_block_count ? cols_block_count : n - cols_block_count * i;
+            int cols_to_read = m - cols_block_count * j > cols_block_count ? cols_block_count : m - cols_block_count * j;
+
+#ifdef __PROFILE__
+            cout << "lines_to_read = " << lines_to_read << " cols_to_read = " << cols_to_read << endl;
+#endif
+
 
             for (int k = 0; k < lines_to_read; ++k) {
                 long source_offset = params_offset +         // n and m 8 bytes
                         (k + i * lines_block_count) * m +    // lines offset
                                      j * cols_block_count;   // offset inside current line
                 in.seekg(source_offset);
-                in.read(source + k * cols_block_count, cols_to_read);
+                in.read(source + k * cols_to_read, cols_to_read);
+
+#ifdef __PROFILE__
+                cout << "source_offset = " << source_offset << " read bytes = " << cols_to_read << endl;
+#endif
+
             }
 
             transpose(destination, source, lines_to_read, cols_to_read);
@@ -68,7 +99,12 @@ void external_transpose(ifstream &in, ofstream &out, int n, int m, int memory_si
                 long dest_offset =  (k + j * cols_block_count) * n +
                                      i * lines_block_count;
                 out.seekp(dest_offset);
-                out.write(source + k * lines_block_count, lines_to_read);
+                out.write(destination + k * lines_to_read, lines_to_read);
+
+#ifdef __PROFILE__
+                cout << "dest_offset = " << dest_offset << " write bytes = " << lines_to_read << endl;
+#endif
+
             }
         }
     }
@@ -82,12 +118,31 @@ void gen_test(int n, int m) {
     file.write((char *)&n, 4);
     file.write((char *)&m, 4);
 
-    for (int i = 0; i < n * m; i++)
+    for (int i = 1; i <= n * m; i++)
     {
         file.write((char *)&i, 1);
     }
 
     file.close();
+}
+
+bool compare_files(const string& filename1, const string& filename2)
+{
+    ifstream file1(filename1, ifstream::ate | ifstream::binary);
+    std::ifstream file2(filename2, std::ifstream::ate | std::ifstream::binary);
+    const ifstream::pos_type fileSize = file1.tellg();
+
+    if (fileSize != file2.tellg()) {
+        return false; //different file size
+    }
+
+    file1.seekg(0);
+    file2.seekg(0);
+
+    istreambuf_iterator<char> begin1(file1);
+    istreambuf_iterator<char> begin2(file2);
+
+    return equal(begin1, istreambuf_iterator<char>(),begin2); //Second argument is end-of-range iterator
 }
 
 #endif
@@ -107,10 +162,20 @@ int main() {
     int n = 0;
     int m = 0;
 
-    in >> n >> m;
+    in.read((char *)&n, 4);
+    in.read((char *)&m, 4);
 
-    int memory_limit = 1000000;
+    int memory_limit = 1000000 - 1000;
+
     external_transpose(in, out, n, m, memory_limit);
+    out.close();
+
+#ifdef __PROFILE__
+
+    cout << "Result correct - " << compare_files("output.bin", "output_correct.bin");
+
+#endif
+
 
     return 0;
 }
