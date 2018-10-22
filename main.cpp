@@ -96,7 +96,8 @@ void external_transpose(ifstream &in, ofstream &out, int n, int m, int memory_si
             // write block
             for (int k = 0; k < cols_to_read; ++k) {
                 // Mirror source offset
-                long dest_offset =  (k + j * cols_block_count) * n +
+                long dest_offset = params_offset +
+                                    (k + j * cols_block_count) * n +
                                      i * lines_block_count;
                 out.seekp(dest_offset);
                 out.write(destination + k * lines_to_read, lines_to_read);
@@ -164,6 +165,8 @@ int main() {
 
     in.read((char *)&n, 4);
     in.read((char *)&m, 4);
+    out.write((char *)&m, 4);
+    out.write((char *)&n, 4);
 
     int memory_limit = 1000000 - 1000;
 
@@ -172,7 +175,7 @@ int main() {
 
 #ifdef __PROFILE__
 
-    cout << "Result correct - " << compare_files("output.bin", "output_correct.bin");
+    cout << "Result correct - " << compare_files("output.bin", "answer.txt");
 
 #endif
 
